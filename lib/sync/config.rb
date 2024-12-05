@@ -2,6 +2,7 @@ require 'toml-rb'
 
 module Sync
   class Config
+    TOKEN_KEY = 'github-access-token'.freeze
     attr_reader :github_org, :github_project_id, :github_client_id, :config_path
 
     def initialize(config_path = 'config.toml')
@@ -20,6 +21,22 @@ module Sync
       end
     end
 
+    def store_access_token(token)
+      update_config('github', TOKEN_KEY, token)
+    end
+
+    def retrieve_access_token
+      @config.dig('github', TOKEN_KEY)
+    end
+
+    def clear_access_token
+      @config['github'].delete(TOKEN_KEY) if @config['github']
+
+      File.open(@config_path, 'w') do |file|
+        file.write(TomlRB.dump(@config))
+      end
+    end
+
     private
 
     def validate_config
@@ -32,3 +49,4 @@ module Sync
     end
   end
 end
+

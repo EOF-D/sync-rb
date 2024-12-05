@@ -5,6 +5,7 @@ require 'async'
 require_relative '../lib/sync/version'
 require_relative '../lib/sync/config'
 require_relative '../lib/sync/auth'
+require_relative '../lib/sync/migrator'
 
 class SyncApp
   def self.run
@@ -12,9 +13,20 @@ class SyncApp
     config = Sync::Config.new(options[:config])
 
     Async do
-      authenticator = Sync::Authenticator.new(config)
-      access_token = authenticator.authenticate.wait
-      puts access_token
+      cached_token = config.retrieve_access_token
+      if cached_token
+        access_token = cached_token
+
+      else
+        authenticator = Sync::Authenticator.new(config)
+        access_token = authenticator.authenticate.wait
+        config.store_access_token(access_token)
+      end
+
+      migrator = Sync::ProjectMigrator.new(config, access_token)
+      project = migrator.fetch_full_project_details.wait
+
+      puts project
     end
 
     Async::Reactor.run
@@ -34,6 +46,13 @@ class SyncApp
         puts "sync-rb version: #{Sync::VERSION}"
         exit
       end
+
+      opts.on('--clear-token', 'Clear stored access token') do
+        config = Sync::Config.new
+        config.clear_access_token
+        puts 'Cached access token cleared.'
+        exit
+      end
     end.parse!
 
     options
@@ -41,3 +60,4 @@ class SyncApp
 end
 
 SyncApp.run
+
